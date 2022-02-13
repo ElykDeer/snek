@@ -6,7 +6,9 @@ use sdl2::render::Canvas;
 use sdl2::video::Window;
 
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Apple {
   pub x: u32,
   pub y: u32,

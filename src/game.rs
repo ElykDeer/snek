@@ -1,7 +1,7 @@
 use crate::apple::Apple;
+use crate::file::{save, GameData};
 use crate::snek::Snek;
 
-use sdl2;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
@@ -10,11 +10,14 @@ use sdl2::render::{Canvas, TextureCreator, TextureQuery};
 use sdl2::ttf::Font;
 use sdl2::video::{Window, WindowContext};
 
+use std::time::Instant;
+
 pub struct GameState {
     pub window_width: u32,
     pub window_height: u32,
     pub box_size: u32,
     pub snek_tick_speed_ms: u128,
+    pub last_save_time: Instant,
 }
 
 pub struct Game<'a> {
@@ -27,9 +30,8 @@ pub struct Game<'a> {
 }
 
 impl<'a> Game<'a> {
-    pub fn init(canvas: &Canvas<Window>, font: Font<'a, 'a>) -> Self {
+    pub fn new(canvas: &Canvas<Window>, font: Font<'a, 'a>, box_size: u32) -> Self {
         let (window_width, window_height) = canvas.window().size();
-        let box_size = 15;
 
         Self {
             game_state: GameState {
@@ -37,6 +39,7 @@ impl<'a> Game<'a> {
                 window_height,
                 box_size,
                 snek_tick_speed_ms: 50,
+                last_save_time: Instant::now(),
             },
 
             font,
@@ -44,6 +47,32 @@ impl<'a> Game<'a> {
 
             sneks: vec![Snek::new(window_width, window_height, box_size)],
             apples: vec![Apple::new(window_width, window_height, box_size)],
+        }
+    }
+
+    pub fn load(
+        window_width: u32,
+        window_height: u32,
+        font: Font<'a, 'a>,
+        box_size: u32,
+        snek_tick_speed_ms: u128,
+        sneks: Vec<Snek>,
+        apples: Vec<Apple>,
+    ) -> Self {
+        Self {
+            game_state: GameState {
+                window_width,
+                window_height,
+                box_size,
+                snek_tick_speed_ms,
+                last_save_time: Instant::now(),
+            },
+
+            font,
+            paused: true,
+
+            sneks,
+            apples,
         }
     }
 
@@ -65,6 +94,11 @@ impl<'a> Game<'a> {
     }
 
     pub fn tick(&mut self) {
+        // Check if game's been saved, save
+        if (Instant::now() - self.game_state.last_save_time).as_secs() > 5 {
+            save(self.into());
+        }
+
         if self.paused {
             // Check interactions between game objects
             //   If a snake has eaten an apple:
@@ -127,6 +161,30 @@ impl<'a> Game<'a> {
         // Draw apples
         for apple in &self.apples {
             apple.draw(&self.game_state, canvas);
+        }
+    }
+}
+
+impl<'a> Into<GameData> for Game<'a> {
+    fn into(self) -> GameData {
+        let sneks = self.sneks.iter().map(|s| s.into()).collect();
+
+        GameData {
+            snek_tick_speed_ms: self.game_state.snek_tick_speed_ms,
+            sneks,
+            apples: self.apples.clone(),
+        }
+    }
+}
+
+impl<'a> Into<GameData> for &mut Game<'a> {
+    fn into(self) -> GameData {
+        let sneks = self.sneks.iter().map(|s| s.into()).collect();
+
+        GameData {
+            snek_tick_speed_ms: self.game_state.snek_tick_speed_ms,
+            sneks,
+            apples: self.apples.clone(),
         }
     }
 }

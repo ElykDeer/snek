@@ -1,3 +1,4 @@
+use crate::file::SnekData;
 use crate::game::GameState;
 
 use sdl2::event::Event;
@@ -7,10 +8,11 @@ use sdl2::rect::Rect;
 use sdl2::render::Canvas;
 use sdl2::video::Window;
 
+use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
-#[derive(PartialEq, Eq)]
-enum Direction {
+#[derive(Serialize, Deserialize, PartialEq, Eq, Clone)]
+pub enum Direction {
   Up,
   Down,
   Right,
@@ -42,6 +44,19 @@ impl Snek {
       changed_direction: false,
       positions: vec![(x, y, 0, 0), (x, y, 0, 0), (x, y, 0, 0)],
       len: 3,
+      offset: 0,
+      d_offset: 1,
+      wiggle: 2,
+    }
+  }
+
+  pub fn load(direction: Direction, positions: Vec<(u32, u32, i8, i8)>, len: u32) -> Self {
+    Self {
+      timer: Instant::now(),
+      direction,
+      changed_direction: false,
+      positions,
+      len,
       offset: 0,
       d_offset: 1,
       wiggle: 2,
@@ -216,6 +231,16 @@ impl Snek {
           game_state.box_size,
         ))
         .unwrap();
+    }
+  }
+}
+
+impl Into<SnekData> for &Snek {
+  fn into(self) -> SnekData {
+    SnekData {
+      direction: self.direction.clone(),
+      positions: self.positions.clone(),
+      len: self.len,
     }
   }
 }

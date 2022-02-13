@@ -1,4 +1,5 @@
 mod apple;
+mod file;
 mod game;
 mod helpers;
 mod snek;
@@ -42,13 +43,11 @@ fn main() {
         .load_font(Path::new("assets/cruft.ttf"), 50)
         .unwrap();
 
-    let mut game_state = game::Game::init(&canvas, font);
+    let mut game = file::load(&canvas, font);
 
     // After initializing everything, in the web version, we should delete the spinner from in front of the canvas
     #[cfg(target_os = "emscripten")]
-    {
-        emscripten::exec("let spinner = document.getElementById('spinner'); spinner.remove();");
-    }
+    emscripten::exec("let spinner = document.getElementById('spinner'); spinner.remove();");
 
     let mut event_pump = sdl_context.event_pump().unwrap();
     'mainloop: loop {
@@ -74,18 +73,21 @@ fn main() {
         // Process this frame's events
         for event in event_pump.poll_iter() {
             match event {
-                Event::Quit { .. } => break 'mainloop,
+                Event::Quit { .. } => {
+                    file::save(game.into());
+                    break 'mainloop;
+                }
                 _ => {
-                    game_state.process_event(&event);
+                    game.process_event(&event);
                 }
             }
         }
 
         // Tick
-        game_state.tick();
+        game.tick();
 
         // Draw
-        game_state.draw(&mut canvas, &texture_creator);
+        game.draw(&mut canvas, &texture_creator);
         canvas.present();
 
         helpers::frame_wait(t1);
