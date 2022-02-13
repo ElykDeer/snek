@@ -1,3 +1,6 @@
+use crate::apple::Apple;
+use crate::snek::Snek;
+
 use sdl2;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -7,224 +10,97 @@ use sdl2::render::{Canvas, TextureCreator, TextureQuery};
 use sdl2::ttf::Font;
 use sdl2::video::{Window, WindowContext};
 
-use rand::Rng;
-use std::time::Instant;
-
-static BOX_SIZE: u32 = 15; // divisions of the smaller axis of the screen
-static GAME_TICK_SPEED: u128 = 50; // milliseconds
-static WIGGLE: i8 = 2; // milliseconds
-
-#[derive(PartialEq, Eq)]
-enum Direction {
-    Up,
-    Down,
-    Right,
-    Left,
+pub struct GameState {
+    pub window_width: u32,
+    pub window_height: u32,
+    pub box_size: u32,
+    pub snek_tick_speed_ms: u128,
 }
 
-pub struct GameState<'a> {
+pub struct Game<'a> {
+    game_state: GameState,
     font: Font<'a, 'a>,
     paused: bool,
-    timer: Instant,
-    direction: Direction,
-    changed_direction: bool,
-    positions: Vec<(u32, u32, i8, i8)>,
-    length: u32,
-    offset: i8,
-    d_offset: i8,
-    apple: (u32, u32),
+
+    sneks: Vec<Snek>,
+    apples: Vec<Apple>,
 }
 
-impl<'a> GameState<'a> {
+impl<'a> Game<'a> {
     pub fn init(canvas: &Canvas<Window>, font: Font<'a, 'a>) -> Self {
         let (window_width, window_height) = canvas.window().size();
-
-        let mut rng = rand::thread_rng();
-        let apple = (
-            rng.gen_range(0..window_width / BOX_SIZE) * BOX_SIZE,
-            rng.gen_range(0..window_height / BOX_SIZE) * BOX_SIZE,
-        );
-
-        let x = window_width / BOX_SIZE / 2 * BOX_SIZE;
-        let y = window_height / BOX_SIZE / 2 * BOX_SIZE;
+        let box_size = 15;
 
         Self {
+            game_state: GameState {
+                window_width,
+                window_height,
+                box_size,
+                snek_tick_speed_ms: 50,
+            },
+
             font,
             paused: true,
-            timer: Instant::now(),
-            direction: Direction::Up,
-            changed_direction: false,
-            positions: vec![(x, y, 0, 0), (x, y, 0, 0), (x, y, 0, 0)],
-            length: 3,
-            offset: 0,
-            d_offset: 1,
-            apple,
+
+            sneks: vec![Snek::new(window_width, window_height, box_size)],
+            apples: vec![Apple::new(window_width, window_height, box_size)],
         }
     }
 
-    pub fn process_event(&mut self, event: Event) {
+    pub fn process_event(&mut self, event: &Event) {
         match event {
-            Event::KeyDown {
-                keycode: Some(Keycode::Up),
-                ..
-            }
-            | Event::KeyDown {
-                keycode: Some(Keycode::W),
-                ..
-            } => {
-                self.paused = false;
-                if self.direction != Direction::Up {
-                    self.changed_direction = true;
-                }
-                self.direction = Direction::Up
-            }
-
-            Event::KeyDown {
-                keycode: Some(Keycode::Down),
-                ..
-            }
-            | Event::KeyDown {
-                keycode: Some(Keycode::S),
-                ..
-            } => {
-                self.paused = false;
-                if self.direction != Direction::Down {
-                    self.changed_direction = true;
-                }
-                self.direction = Direction::Down
-            }
-
-            Event::KeyDown {
-                keycode: Some(Keycode::Left),
-                ..
-            }
-            | Event::KeyDown {
-                keycode: Some(Keycode::A),
-                ..
-            } => {
-                self.paused = false;
-                if self.direction != Direction::Left {
-                    self.changed_direction = true;
-                }
-                self.direction = Direction::Left
-            }
-
-            Event::KeyDown {
-                keycode: Some(Keycode::Right),
-                ..
-            }
-            | Event::KeyDown {
-                keycode: Some(Keycode::D),
-                ..
-            } => {
-                self.paused = false;
-                if self.direction != Direction::Right {
-                    self.changed_direction = true;
-                }
-                self.direction = Direction::Right
-            }
-
             Event::KeyDown {
                 keycode: Some(Keycode::Space),
                 ..
             } => {
                 self.paused = !self.paused;
-                self.timer = Instant::now();
+                // self.timer = Instant::now(); // TODO : Reset all snek timers?
             }
-            _ => {}
+            _ => {
+                for snek in &mut self.sneks {
+                    snek.process_event(&event);
+                }
+            }
         }
     }
 
-    pub fn tick(
-        &mut self,
+    pub fn tick(&mut self) {
+        if self.paused {
+            // Check interactions between game objects
+            //   If a snake has eaten an apple:
+            'apples: for apple in &mut self.apples {
+                if !apple.eaten {
+                    for snek in &mut self.sneks {
+                        if snek.position() == (apple.x, apple.y) {
+                            snek.len += 1;
+                            apple.eaten = true;
+                            continue 'apples;
+                        }
+                    }
+                }
+            }
+
+            for snek in &mut self.sneks {
+                snek.tick(&self.game_state);
+            }
+
+            for apple in &mut self.apples {
+                apple.tick(&self.game_state);
+            }
+        }
+    }
+
+    pub fn draw(
+        &self,
         canvas: &mut Canvas<Window>,
         texture_creator: &TextureCreator<WindowContext>,
     ) {
-        if !self.paused && (Instant::now() - self.timer).as_millis() > GAME_TICK_SPEED {
-            self.timer = Instant::now();
-
-            if self.offset == WIGGLE {
-                self.d_offset = -1;
-            } else if self.offset == -WIGGLE {
-                self.d_offset = 1;
-            }
-            self.offset += self.d_offset;
-
-            let (window_width, window_height) = canvas.window().size();
-            let (prev_x, prev_y, _, _) = self.positions.last().unwrap().clone();
-            if self.changed_direction {
-                self.changed_direction = false;
-                self.positions.pop();
-                self.positions.push((prev_x, prev_y, 0, 0));
-            }
-            match &self.direction {
-                Direction::Up => {
-                    if prev_y != 0 {
-                        self.positions
-                            .push((prev_x, prev_y - BOX_SIZE, self.offset, 0));
-                    } else {
-                        self.positions.push((
-                            prev_x,
-                            BOX_SIZE * (window_height / BOX_SIZE),
-                            self.offset,
-                            0,
-                        ));
-                    }
-                }
-                Direction::Down => {
-                    if (prev_y + BOX_SIZE) < window_height {
-                        self.positions
-                            .push((prev_x, prev_y + BOX_SIZE, self.offset, 0));
-                    } else {
-                        self.positions.push((prev_x, 0, self.offset, 0));
-                    }
-                }
-                Direction::Left => {
-                    if prev_x != 0 {
-                        self.positions
-                            .push((prev_x - BOX_SIZE, prev_y, 0, self.offset));
-                    } else {
-                        self.positions.push((
-                            BOX_SIZE * (window_width / BOX_SIZE),
-                            prev_y,
-                            0,
-                            self.offset,
-                        ));
-                    }
-                }
-                Direction::Right => {
-                    if (prev_x + BOX_SIZE) < window_width {
-                        self.positions
-                            .push((prev_x + BOX_SIZE, prev_y, 0, self.offset));
-                    } else {
-                        self.positions.push((0, prev_y, 0, self.offset));
-                    }
-                }
-            }
-
-            // Got apple?
-            if self.apple.0 == self.positions.last().unwrap().0
-                && self.apple.1 == self.positions.last().unwrap().1
-            {
-                self.length += 1;
-                let mut rng = rand::thread_rng();
-                self.apple = (
-                    rng.gen_range(0..canvas.window().size().0 / BOX_SIZE) * BOX_SIZE,
-                    rng.gen_range(0..canvas.window().size().1 / BOX_SIZE) * BOX_SIZE,
-                );
-            }
-
-            if self.positions.len() > self.length as usize {
-                self.positions.rotate_left(1);
-                self.positions.pop();
-            }
-        }
-
         // Draw Score
+        let score = self.sneks.iter().fold(0, |acc, snek| acc + snek.len - 3);
         let text_texture = texture_creator
             .create_texture_from_surface(
                 self.font
-                    .render(&format!("{}", self.positions.len()))
+                    .render(&format!("{}", score))
                     .blended(Color::BLACK)
                     .unwrap(),
             )
@@ -243,33 +119,14 @@ impl<'a> GameState<'a> {
             )
             .unwrap();
 
-        // Draw Snek
-        let g_increment: f64 = 255.0 / self.positions.len() as f64;
-        let mut g: f64 = 32.0;
-        for (x, y, dx, dy) in self.positions.iter() {
-            canvas.set_draw_color(Color::RGB(0, g.floor() as u8, 20));
-            if g + g_increment <= 255.0 {
-                g += g_increment;
-            }
-            canvas
-                .fill_rect(Rect::new(
-                    *x as i32 + *dx as i32,
-                    *y as i32 + *dy as i32,
-                    BOX_SIZE,
-                    BOX_SIZE,
-                ))
-                .unwrap();
+        // Draw sneks
+        for snek in &self.sneks {
+            snek.draw(&self.game_state, canvas);
         }
 
-        // Draw apple
-        canvas.set_draw_color(Color::RED);
-        canvas
-            .fill_rect(Rect::new(
-                self.apple.0 as i32,
-                self.apple.1 as i32,
-                BOX_SIZE,
-                BOX_SIZE,
-            ))
-            .unwrap();
+        // Draw apples
+        for apple in &self.apples {
+            apple.draw(&self.game_state, canvas);
+        }
     }
 }

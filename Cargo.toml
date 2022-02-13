@@ -1,5 +1,5 @@
 [package]
-name = "sdl_emscripten_template"
+name = "snek"
 version = "0.1.0"
 edition = "2021"
 

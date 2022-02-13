@@ -19,14 +19,14 @@ def build():
     os.system("make web")
     os.system("mkdir web")
     os.system("cp src/index.html web")
-    os.system("cp target/wasm32-unknown-emscripten/release/deps/sdl_emscripten_template.wasm web/")
-    os.system("cp target/wasm32-unknown-emscripten/release/deps/sdl_emscripten_template.js web/")
+    os.system("cp target/wasm32-unknown-emscripten/release/deps/snek.wasm web/")
+    os.system("cp target/wasm32-unknown-emscripten/release/deps/snek.js web/")
   except:
     quit()
 
 
 def run():
-  return subprocess.Popen("python3 -m http.server --bind 0.0.0.0 --directory web", shell=True)
+  return subprocess.Popen(["python3", "-m", "http.server", "--bind", "0.0.0.0", "--directory", "web"])
 
 
 def get_output(func, proc):
@@ -46,6 +46,7 @@ if __name__ == '__main__':
       last_modified = current_modified
       print("\nRestarting process.")
       process.kill()
+      process.wait()
       build()
       process = run()
 

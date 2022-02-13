@@ -1,4 +1,7 @@
+mod apple;
 mod game;
+mod helpers;
+mod snek;
 
 #[cfg(target_os = "emscripten")]
 mod emscripten_wrappers;
@@ -7,7 +10,6 @@ use emscripten_wrappers::emscripten;
 
 use sdl2;
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
 use sdl2::pixels::Color;
 
 use std::path::Path;
@@ -26,17 +28,12 @@ fn main() {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-        .window("Rust/SDL/Emscripten Template", window_width, window_height)
+        .window("snek", window_width, window_height)
         .position_centered()
         .resizable()
         .build()
         .unwrap();
-    let mut canvas = window
-        .into_canvas()
-        .accelerated()
-        .present_vsync()
-        .build()
-        .unwrap();
+    let mut canvas = window.into_canvas().build().unwrap();
     let texture_creator = canvas.texture_creator();
 
     // Initialize fonts
@@ -45,12 +42,11 @@ fn main() {
         .load_font(Path::new("assets/cruft.ttf"), 50)
         .unwrap();
 
-    let mut game_state = game::GameState::init(&canvas, font);
+    let mut game_state = game::Game::init(&canvas, font);
 
     // After initializing everything, in the web version, we should delete the spinner from in front of the canvas
     #[cfg(target_os = "emscripten")]
     {
-        emscripten::sleep(1500); // Just to demonstrate that the spinner works
         emscripten::exec("let spinner = document.getElementById('spinner'); spinner.remove();");
     }
 
@@ -78,48 +74,20 @@ fn main() {
         // Process this frame's events
         for event in event_pump.poll_iter() {
             match event {
-                Event::KeyDown {
-                    keycode: Some(Keycode::Escape),
-                    ..
-                }
-                | Event::Quit { .. } => break 'mainloop,
+                Event::Quit { .. } => break 'mainloop,
                 _ => {
-                    game_state.process_event(event);
+                    game_state.process_event(&event);
                 }
             }
         }
+
+        // Tick
+        game_state.tick();
 
         // Draw
-        game_state.tick(&mut canvas, &texture_creator);
+        game_state.draw(&mut canvas, &texture_creator);
         canvas.present();
 
-        // Set framerate to ~60fps
-        #[cfg(not(target_os = "emscripten"))]
-        {
-            use std::thread;
-            use std::time::Duration;
-            let frame_time = (Instant::now() - t1).as_nanos();
-            if frame_time < u32::MAX as u128 {
-                let fps = 1_000_000_000u32 / 60u32;
-                if fps > frame_time as u32 {
-                    thread::sleep(Duration::new(0, fps - frame_time as u32));
-                }
-            }
-        }
-        #[cfg(target_os = "emscripten")]
-        {
-            let frame_time = (Instant::now() - t1).as_millis();
-            if frame_time < u32::MAX as u128 {
-                let fps = 1_000u32 / 60u32;
-                if fps > frame_time as u32 {
-                    emscripten::sleep(fps - frame_time as u32);
-                }
-            }
-        }
-
-        println!(
-            "FPS: {}",
-            1_000_000_000u128 / (Instant::now() - t1).as_nanos()
-        );
+        helpers::frame_wait(t1);
     }
 }
