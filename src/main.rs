@@ -87,6 +87,7 @@ fn main() {
         game.tick();
 
         // Draw
+        game.tick_animations();
         game.draw(&mut canvas, &texture_creator);
         canvas.present();
 

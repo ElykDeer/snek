@@ -25,14 +25,13 @@ static BOX_SIZE: u32 = 15;
 #[derive(Serialize, Deserialize)]
 pub struct SnekData {
   pub direction: Direction,
-
-  pub positions: Vec<(u32, u32, i8, i8)>,
+  pub positions: Vec<(u32, u32)>,
   pub len: u32,
+  pub tick_speed_ms: u128,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct GameData {
-  pub snek_tick_speed_ms: u128,
   pub sneks: Vec<SnekData>,
   pub apples: Vec<Apple>,
 }
@@ -47,7 +46,7 @@ pub fn load<'a>(canvas: &Canvas<Window>, font: Font<'a, 'a>) -> Game<'a> {
       let sneks = game_data
         .sneks
         .into_iter()
-        .map(|s| Snek::load(s.direction, s.positions, s.len))
+        .map(|s| Snek::load(s.direction, s.positions, s.len, s.tick_speed_ms))
         .collect();
 
       return Game::load(
@@ -55,7 +54,6 @@ pub fn load<'a>(canvas: &Canvas<Window>, font: Font<'a, 'a>) -> Game<'a> {
         canvas.window().size().1,
         font,
         BOX_SIZE,
-        game_data.snek_tick_speed_ms,
         sneks,
         game_data.apples,
       );
@@ -73,7 +71,7 @@ pub fn load<'a>(canvas: &Canvas<Window>, font: Font<'a, 'a>) -> Game<'a> {
     let sneks = game_data
       .sneks
       .into_iter()
-      .map(|s| Snek::load(s.direction, s.positions, s.len))
+      .map(|s| Snek::load(s.direction, s.positions, s.len, s.tick_speed_ms))
       .collect();
 
     return Game::load(
@@ -81,7 +79,6 @@ pub fn load<'a>(canvas: &Canvas<Window>, font: Font<'a, 'a>) -> Game<'a> {
       canvas.window().size().1,
       font,
       BOX_SIZE,
-      game_data.snek_tick_speed_ms,
       sneks,
       game_data.apples,
     );

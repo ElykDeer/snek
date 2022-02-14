@@ -16,7 +16,6 @@ pub struct GameState {
     pub window_width: u32,
     pub window_height: u32,
     pub box_size: u32,
-    pub snek_tick_speed_ms: u128,
     pub last_save_time: Instant,
 }
 
@@ -38,12 +37,11 @@ impl<'a> Game<'a> {
                 window_width,
                 window_height,
                 box_size,
-                snek_tick_speed_ms: 50,
                 last_save_time: Instant::now(),
             },
 
             font,
-            paused: true,
+            paused: false,
 
             sneks: vec![Snek::new(window_width, window_height, box_size)],
             apples: vec![Apple::new(window_width, window_height, box_size)],
@@ -55,7 +53,6 @@ impl<'a> Game<'a> {
         window_height: u32,
         font: Font<'a, 'a>,
         box_size: u32,
-        snek_tick_speed_ms: u128,
         sneks: Vec<Snek>,
         apples: Vec<Apple>,
     ) -> Self {
@@ -64,12 +61,11 @@ impl<'a> Game<'a> {
                 window_width,
                 window_height,
                 box_size,
-                snek_tick_speed_ms,
                 last_save_time: Instant::now(),
             },
 
             font,
-            paused: true,
+            paused: false,
 
             sneks,
             apples,
@@ -99,7 +95,7 @@ impl<'a> Game<'a> {
             save(self.into());
         }
 
-        if self.paused {
+        if !self.paused {
             // Check interactions between game objects
             //   If a snake has eaten an apple:
             'apples: for apple in &mut self.apples {
@@ -120,6 +116,14 @@ impl<'a> Game<'a> {
 
             for apple in &mut self.apples {
                 apple.tick(&self.game_state);
+            }
+        }
+    }
+
+    pub fn tick_animations(&mut self) {
+        if !self.paused {
+            for snek in &mut self.sneks {
+                snek.tick_animations();
             }
         }
     }
@@ -170,7 +174,6 @@ impl<'a> Into<GameData> for Game<'a> {
         let sneks = self.sneks.iter().map(|s| s.into()).collect();
 
         GameData {
-            snek_tick_speed_ms: self.game_state.snek_tick_speed_ms,
             sneks,
             apples: self.apples.clone(),
         }
@@ -182,7 +185,6 @@ impl<'a> Into<GameData> for &mut Game<'a> {
         let sneks = self.sneks.iter().map(|s| s.into()).collect();
 
         GameData {
-            snek_tick_speed_ms: self.game_state.snek_tick_speed_ms,
             sneks,
             apples: self.apples.clone(),
         }
